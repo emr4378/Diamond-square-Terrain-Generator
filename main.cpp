@@ -15,6 +15,8 @@
 #include "terrainGenerator.h"
 #include "SOIL.h"
 
+//#define MINECRAFT 1
+
 #define SQRT3 1.73205081
 
 
@@ -31,29 +33,43 @@
 #define KEY_SHADED 50 //2
 
 //define constants for user interactivity
-#define MOVE_SPEED 7
+#define MOVE_SPEED 14
 #define MOVE_MULT 3
 
 
+#ifdef MINECRAFT
+	const int MAX_HEIGHT = 128;
+	const int ITERATIONS = 9;
+	const float ROUGHNESS = 2;
+	const int CUBE_WID = 16;
+#else
+	const int MAX_HEIGHT = 256;
+	const int ITERATIONS = 9;
+	const float ROUGHNESS = 5;
+	const int CUBE_WID = 16;
+#endif
 
-const int MAX_HEIGHT = 32;
-const int ITERATIONS = 6;
-const float ROUGHNESS = 1;
-const int CUBE_WID = 16;
-const string IMAGE_PATH = "Z:\\Dropbox\\3dTerrain\\images\\";
+//const string IMAGE_PATH = "Z:\\Dropbox\\3dTerrain\\images\\";
+const string IMAGE_PATH = "C:\\Users\\CheEsus\\Dropbox\\3dTerrain\\images\\";
 
 
 int tTime = 35;
+
+#ifdef MINECRAFT
 signed char * map;
+#else
+float * map;
+#endif
+
 int mapSize;
 int mapDimension;
 
 
-Point3 cam;
+Point3 cam(0.0, 200.0, 100.0);
 Vector3 gravity(0.0, 0.0, 0.0);
 Vector3 forwardV, upV, rightV;
 float moveSpeed;
-double yaw, pitch;
+double yaw = 0, pitch = 0;
 int oldx, oldy; 
 bool keys[256];
 
@@ -191,7 +207,7 @@ float sphereInFrustum( float x, float y, float z, float radius )
 void drawCube(int wid, GLuint side, GLuint top, GLuint bot) {
 	glutWireCube(CUBE_WID);
 	//Radius = (CUBE_WID / 2) * SQRT3
-	glPushMatrix();
+	/*glPushMatrix();
 		for (int i = 0; i < 4; i++) {
 			glBindTexture(GL_TEXTURE_2D, side);
 			glBegin(GL_POLYGON);
@@ -221,7 +237,7 @@ void drawCube(int wid, GLuint side, GLuint top, GLuint bot) {
             glTexCoord2f(1.0f, 1.0f); glVertex3f(wid/2, wid/2, wid/2);
             glTexCoord2f(0.0f, 1.0f); glVertex3f(-wid/2, wid/2, wid/2);
 		glEnd();
-	glPopMatrix();
+	glPopMatrix();*/
 }
 
 GLuint loadTexture(string filename) {
@@ -283,8 +299,11 @@ void display(void)
 
 	extractFrustum();
 
+	glBindTexture(GL_TEXTURE_2D, 0);
 	glColor3f(1, 1, 1);
-	//glTranslatef(0, -100, 0);
+
+#ifdef MINECRAFT
+	glTranslatef(0, -100, 0);
 	if (map != NULL) {
 		float radius = (CUBE_WID/2) * SQRT3;
 		for (int r = 0; r < mapDimension; r++) {
@@ -299,7 +318,29 @@ void display(void)
 			}
 		}
 	}
+#else
+
+	glBegin(GL_LINES);
+	if (map != NULL) {
+		for (int r = 1; r < mapDimension; r++) {
+			for (int c = 1; c < mapDimension; c++) {
+				
+				float pos1[3] = { CUBE_WID*(c-mapDimension/2), CUBE_WID*map[r * mapDimension + c], CUBE_WID*(r-mapDimension/2) };
+				float pos2[3] = { CUBE_WID*(c-1-mapDimension/2), CUBE_WID*map[(r) * mapDimension + (c-1)], CUBE_WID*(r-mapDimension/2) };
+				float pos3[3] = { CUBE_WID*(c-mapDimension/2), CUBE_WID*map[(r - 1) * mapDimension + (c)], CUBE_WID*(r-1-mapDimension/2) };
+				
+				glVertex3f(pos1[0], pos1[1], pos1[2]);
+				glVertex3f(pos2[0], pos2[1], pos2[2]);
+
+				glVertex3f(pos1[0], pos1[1], pos1[2]);
+				glVertex3f(pos3[0], pos3[1], pos3[2]);
+			}
+		}
+	}
+	glEnd();
 	
+
+#endif
 
 
 	glDisable(GL_TEXTURE_2D);
@@ -309,16 +350,33 @@ void display(void)
 
 void init(void)
 {
-	cam = Point3(0.0, 100, 0.0);
+	//cam = Point3(0.0, 100, 0.0);
 	TerrainGenerator gen(ROUGHNESS);
 	mapSize = gen.determineLength(ITERATIONS);
+
+#ifdef MINECRAFT
 	map = new signed char[mapSize];
+#else
+	map = new float[mapSize];
+#endif
+
+	mapDimension = sqrt((float)mapSize);
+
 	for (int i = 0; i < mapSize; i++) {
-		map[i] = 0;
+		if (i < mapDimension || i > mapSize-mapDimension || i % mapDimension == 0 || (i+1) % mapDimension == 0) {
+			map[i] = 1;
+		} else {
+			map[i] = 0;
+		}
 	}
 	//gen.diamondSquare(map, &mapSize, MAX_HEIGHT, ITERATIONS);
+
+#ifdef MINECRAFT
 	gen.diamondSquare<signed char>(map, &mapSize, MAX_HEIGHT);
-	mapDimension = sqrt((float)mapSize);
+#else
+	gen.diamondSquare<float>(map, &mapSize, MAX_HEIGHT);
+#endif
+	
 
 	GLuint topTex = loadTexture(IMAGE_PATH + "grass_top_TINY.png");
 	GLuint sideTex = loadTexture(IMAGE_PATH + "grass_side_TINY.png");
@@ -359,7 +417,12 @@ void reshape(int w, int h)
 	glViewport(0, 0, (GLsizei) w, (GLsizei) h);
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
+
+#ifdef MINECRAFT
 	gluPerspective(60.0, (double)w/(double)h, 1, 1000);
+#else
+	gluPerspective(60.0, (double)w/(double)h, 1, 10000);
+#endif
    
 }
 
