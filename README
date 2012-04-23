@@ -1,0 +1,3 @@
+Only things necessary for terrain generation are terrainGenerator and vecmath.
+
+main, SOIL, and images are just used for demonstration purposes.
